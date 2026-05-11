@@ -14,7 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
-import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2 } from "lucide-react";
+import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2, Usb, PlugZap, X, ChevronDown, ChevronUp, Activity, CircleDot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -45,6 +45,16 @@ export default function IDE() {
   const [isRenameOpen, setIsRenameOpen] = useState(false);
   const [renameProjectId, setRenameProjectId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
+
+  // Serial / board connection state
+  const [isConnected, setIsConnected] = useState(false);
+  const [portName, setPortName] = useState("");
+  const [baudRate, setBaudRate] = useState("9600");
+  const [boardPanelOpen, setBoardPanelOpen] = useState(false);
+  const [serialLog, setSerialLog] = useState<string[]>([]);
+  const serialPortRef = useRef<SerialPort | null>(null);
+  const serialReaderRef = useRef<ReadableStreamDefaultReader | null>(null);
+  const serialSupported = typeof navigator !== "undefined" && "serial" in navigator;
 
   // Queries
   const { data: projects } = useListProjects();
@@ -95,6 +105,71 @@ export default function IDE() {
         setNewProjectName("");
       }
     });
+  };
+
+  const handleConnectBoard = async () => {
+    if (!serialSupported) {
+      toast({ title: "Web Serial not supported", description: "Use Chrome or Edge for board connection.", variant: "destructive" });
+      return;
+    }
+    try {
+      const port = await (navigator as any).serial.requestPort();
+      await port.open({ baudRate: parseInt(baudRate) });
+      serialPortRef.current = port;
+
+      const info = port.getInfo();
+      const pid = info.usbProductId?.toString(16).toUpperCase().padStart(4, "0");
+      const vid = info.usbVendorId?.toString(16).toUpperCase().padStart(4, "0");
+      setPortName(pid && vid ? `USB VID:${vid} PID:${pid}` : "Serial Port");
+      setIsConnected(true);
+      setBoardPanelOpen(true);
+      setSerialLog([`[${new Date().toLocaleTimeString()}] Board connected at ${baudRate} baud.`]);
+      setTerminalOutput(prev => prev + `\nBoard connected at ${baudRate} baud.`);
+      toast({ title: "Board connected" });
+
+      // Start reading serial data
+      const readLoop = async () => {
+        const reader = port.readable.getReader();
+        serialReaderRef.current = reader;
+        const decoder = new TextDecoder();
+        let lineBuffer = "";
+        try {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            lineBuffer += decoder.decode(value, { stream: true });
+            const lines = lineBuffer.split("\n");
+            lineBuffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (line.trim()) {
+                const entry = `[${new Date().toLocaleTimeString()}] ${line.trim()}`;
+                setSerialLog(prev => [...prev.slice(-99), entry]);
+              }
+            }
+          }
+        } catch { /* port closed */ }
+      };
+      readLoop();
+    } catch (err: any) {
+      if (err?.name !== "NotFoundError") {
+        toast({ title: "Connection failed", description: err?.message, variant: "destructive" });
+      }
+    }
+  };
+
+  const handleDisconnectBoard = async () => {
+    try {
+      serialReaderRef.current?.cancel();
+      await serialPortRef.current?.close();
+    } catch { /* ignore */ }
+    serialPortRef.current = null;
+    serialReaderRef.current = null;
+    setIsConnected(false);
+    setPortName("");
+    setSerialLog([]);
+    setBoardPanelOpen(false);
+    setTerminalOutput(prev => prev + "\nBoard disconnected.");
+    toast({ title: "Board disconnected" });
   };
 
   const handleRenameOpen = (id: number, currentName: string) => {
@@ -372,8 +447,104 @@ export default function IDE() {
           <Button variant="outline" size="sm" onClick={handleAIFix} disabled={!selectedProjectId} className="border-chart-2/50 text-chart-2 hover:bg-chart-2/10 gap-2">
             <Wrench className="w-4 h-4" /> AI Fix
           </Button>
+
+          <div className="w-px h-6 bg-border mx-1" />
+
+          {isConnected ? (
+            <button
+              onClick={() => setBoardPanelOpen(o => !o)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-green-500/15 border border-green-500/40 text-green-400 text-xs font-medium hover:bg-green-500/25 transition-colors"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400"></span>
+              </span>
+              Connected
+              {boardPanelOpen ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
+            </button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleConnectBoard}
+              className="border-border gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <Usb className="w-4 h-4" /> Connect
+            </Button>
+          )}
         </div>
       </header>
+
+      {/* Board Connection Panel */}
+      {boardPanelOpen && isConnected && (
+        <div className="border-b border-border bg-[#0d1117] px-4 py-3 flex items-start gap-6 animate-in slide-in-from-top-2 duration-200">
+          {/* Status */}
+          <div className="flex flex-col gap-1 min-w-[140px]">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Board Status</span>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-400"></span>
+              </span>
+              <span className="text-sm font-semibold text-green-400">Connected</span>
+            </div>
+            <span className="text-xs text-muted-foreground truncate max-w-[140px]" title={portName}>{portName}</span>
+          </div>
+
+          {/* Board type */}
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Board</span>
+            <div className="flex items-center gap-1.5">
+              <Cpu className="w-3.5 h-3.5 text-primary" />
+              <span className="text-sm font-medium">Arduino {board}</span>
+            </div>
+          </div>
+
+          {/* Baud rate */}
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Baud Rate</span>
+            <select
+              value={baudRate}
+              onChange={e => setBaudRate(e.target.value)}
+              disabled={isConnected}
+              className="text-sm bg-black/30 border border-border rounded px-2 py-0.5 text-foreground focus:outline-none"
+            >
+              {["300","1200","2400","4800","9600","19200","38400","57600","115200"].map(r => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Serial monitor mini log */}
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <Activity className="w-3 h-3 text-muted-foreground" />
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Serial Monitor</span>
+            </div>
+            <div className="h-12 overflow-y-auto rounded bg-black/40 border border-border/50 px-2 py-1">
+              {serialLog.length === 0 ? (
+                <span className="text-xs text-muted-foreground italic">Waiting for data…</span>
+              ) : (
+                serialLog.slice(-4).map((line, i) => (
+                  <div key={i} className="text-xs font-mono text-green-400/80 leading-4">{line}</div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Disconnect */}
+          <div className="flex flex-col justify-between h-full gap-2 pt-4">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleDisconnectBoard}
+              className="text-destructive hover:text-destructive hover:bg-destructive/10 gap-1.5 h-7 px-2"
+            >
+              <X className="w-3.5 h-3.5" /> Disconnect
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
