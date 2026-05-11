@@ -46,6 +46,7 @@ export default function IDE() {
   const [copiedChat, setCopiedChat] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const newChatModeRef = useRef(false);
   
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -69,8 +70,9 @@ export default function IDE() {
   const { data: projects } = useListProjects();
   const { data: conversations } = useListOpenaiConversations();
   
-  // Setup default conversation if none
+  // Setup default conversation if none (skipped when user clicked New Chat)
   useEffect(() => {
+    if (newChatModeRef.current) return;
     if (conversations && conversations.length > 0 && !conversationId) {
       setConversationId(conversations[0].id);
     }
@@ -182,6 +184,7 @@ export default function IDE() {
   };
 
   const handleNewChat = () => {
+    newChatModeRef.current = true;
     setConversationId(null);
     setChatMessages([]);
     setChatTitleOverride("");
@@ -394,6 +397,7 @@ export default function IDE() {
             { data: { title: "Arduino Assistant" } },
             {
               onSuccess: (data) => {
+                newChatModeRef.current = false;
                 setConversationId(data.id);
                 queryClient.invalidateQueries({ queryKey: getListOpenaiConversationsQueryKey() });
                 resolve(data);
