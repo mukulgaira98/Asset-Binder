@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   useListProjects, 
   useCreateProject, 
-  useUpdateProject, 
+  useUpdateProject,
+  useDeleteProject,
   useCompileSketch,
   useListOpenaiConversations,
   useCreateOpenaiConversation,
@@ -13,13 +14,14 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
-import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload } from "lucide-react";
+import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 const BOARDS = ["Uno", "Mega 2560", "Nano", "Pro Mini", "Leonardo", "Due", "Zero", "MKR WiFi 1010"];
 
@@ -39,6 +41,10 @@ export default function IDE() {
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectBoard, setNewProjectBoard] = useState(BOARDS[0]);
+
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [renameProjectId, setRenameProjectId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   // Queries
   const { data: projects } = useListProjects();
@@ -65,6 +71,7 @@ export default function IDE() {
   const createProject = useCreateProject();
   const createConversation = useCreateOpenaiConversation();
   const updateProject = useUpdateProject();
+  const deleteProject = useDeleteProject();
   const compileSketch = useCompileSketch();
 
   const handleSelectProject = (id: number) => {
@@ -88,6 +95,42 @@ export default function IDE() {
         setNewProjectName("");
       }
     });
+  };
+
+  const handleRenameOpen = (id: number, currentName: string) => {
+    setRenameProjectId(id);
+    setRenameValue(currentName);
+    setIsRenameOpen(true);
+  };
+
+  const handleRenameConfirm = () => {
+    if (!renameProjectId || !renameValue.trim()) return;
+    updateProject.mutate(
+      { id: renameProjectId, data: { name: renameValue.trim() } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+          toast({ title: "Project renamed" });
+          setIsRenameOpen(false);
+        },
+      }
+    );
+  };
+
+  const handleDeleteProject = (id: number, name: string) => {
+    deleteProject.mutate(
+      { id },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListProjectsQueryKey() });
+          if (selectedProjectId === id) {
+            setSelectedProjectId(null);
+            setCode("");
+          }
+          toast({ title: `"${name}" deleted` });
+        },
+      }
+    );
   };
 
   const handleSave = () => {
@@ -346,14 +389,42 @@ export default function IDE() {
                 </div>
               )}
               {projects?.map(p => (
-                <button 
+                <div
                   key={p.id}
+                  className={`group flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors cursor-pointer ${selectedProjectId === p.id ? 'bg-primary/10 text-primary font-bold' : 'text-sidebar-foreground hover:bg-accent'}`}
                   onClick={() => handleSelectProject(p.id)}
-                  className={`flex items-center gap-2 px-3 py-2 text-sm rounded-md transition-colors text-left ${selectedProjectId === p.id ? 'bg-primary/10 text-primary font-bold' : 'text-sidebar-foreground hover:bg-accent'}`}
                 >
-                  <Cpu className={`w-4 h-4 ${selectedProjectId === p.id ? 'text-primary' : 'text-muted-foreground'}`} />
-                  <span className="truncate">{p.name}</span>
-                </button>
+                  <Cpu className={`w-4 h-4 flex-shrink-0 ${selectedProjectId === p.id ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className="truncate flex-1">{p.name}</span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        onClick={e => e.stopPropagation()}
+                        className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded hover:bg-white/10 transition-opacity"
+                      >
+                        <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent side="right" align="start" className="w-44">
+                      <DropdownMenuItem onClick={e => { e.stopPropagation(); handleSelectProject(p.id); }}>
+                        <FolderOpen className="w-4 h-4 mr-2 text-primary" />
+                        Open
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={e => { e.stopPropagation(); handleRenameOpen(p.id, p.name); }}>
+                        <Pencil className="w-4 h-4 mr-2 text-muted-foreground" />
+                        Rename
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={e => { e.stopPropagation(); handleDeleteProject(p.id, p.name); }}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               ))}
             </div>
           </ScrollArea>
@@ -473,6 +544,28 @@ export default function IDE() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsNewProjectOpen(false)}>Cancel</Button>
             <Button onClick={handleCreateProject}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent className="border-border bg-card">
+          <DialogHeader>
+            <DialogTitle>Rename Project</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={renameValue}
+              onChange={e => setRenameValue(e.target.value)}
+              placeholder="Project name"
+              className="bg-black/20"
+              onKeyDown={e => { if (e.key === "Enter") handleRenameConfirm(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameOpen(false)}>Cancel</Button>
+            <Button onClick={handleRenameConfirm} disabled={!renameValue.trim()}>Rename</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
