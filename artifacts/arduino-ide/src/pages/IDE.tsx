@@ -14,7 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
-import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2, Usb, PlugZap, X, ChevronDown, ChevronUp, Activity, CircleDot } from "lucide-react";
+import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2, Usb, X, ChevronDown, ChevronUp, Activity, SquarePen, Copy, Paperclip, Check, PlusSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -37,6 +37,15 @@ export default function IDE() {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(null);
   const [lastCompileError, setLastCompileError] = useState("");
+
+  // Chat panel extras
+  const [chatTitleOverride, setChatTitleOverride] = useState("");
+  const [isEditingChatTitle, setIsEditingChatTitle] = useState(false);
+  const [chatTitleEdit, setChatTitleEdit] = useState("");
+  const [attachedFile, setAttachedFile] = useState<{ name: string; content: string } | null>(null);
+  const [copiedChat, setCopiedChat] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
   
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
@@ -170,6 +179,49 @@ export default function IDE() {
     setBoardPanelOpen(false);
     setTerminalOutput(prev => prev + "\nBoard disconnected.");
     toast({ title: "Board disconnected" });
+  };
+
+  const handleNewChat = () => {
+    setConversationId(null);
+    setChatMessages([]);
+    setChatTitleOverride("");
+    setAttachedFile(null);
+    setChatInput("");
+  };
+
+  const handleCopyChat = async () => {
+    if (!chatMessages.length) return;
+    const text = chatMessages
+      .map(m => `${m.role === "user" ? "You" : "AI"}: ${m.content}`)
+      .join("\n\n");
+    await navigator.clipboard.writeText(text);
+    setCopiedChat(true);
+    setTimeout(() => setCopiedChat(false), 2000);
+    toast({ title: "Chat copied to clipboard" });
+  };
+
+  const handleStartEditTitle = () => {
+    const current = chatTitleOverride || (conversationData as any)?.title || "Arduino Assistant";
+    setChatTitleEdit(current);
+    setIsEditingChatTitle(true);
+  };
+
+  const handleConfirmEditTitle = () => {
+    if (chatTitleEdit.trim()) setChatTitleOverride(chatTitleEdit.trim());
+    setIsEditingChatTitle(false);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const content = ev.target?.result as string;
+      setAttachedFile({ name: file.name, content });
+      toast({ title: `File attached: ${file.name}` });
+    };
+    reader.readAsText(file);
+    e.target.value = "";
   };
 
   const handleRenameOpen = (id: number, currentName: string) => {
@@ -358,14 +410,19 @@ export default function IDE() {
     }
 
     const userMsg = chatInput;
+    const fileCtx = attachedFile
+      ? `\n\n[Attached file: ${attachedFile.name}]\n\`\`\`\n${attachedFile.content}\n\`\`\``
+      : "";
+    const fullContent = userMsg + fileCtx;
     setChatInput("");
-    setChatMessages(prev => [...prev, { id: Date.now(), role: "user", content: userMsg }]);
+    setAttachedFile(null);
+    setChatMessages(prev => [...prev, { id: Date.now(), role: "user", content: fullContent }]);
     
     try {
       const response = await fetch(`/api/openai/conversations/${activeConversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: userMsg })
+        body: JSON.stringify({ content: fullContent })
       });
       
       const reader = response.body!.getReader();
@@ -645,37 +702,113 @@ export default function IDE() {
 
         {/* Right AI Chat */}
         <aside className="w-80 border-l border-border bg-sidebar flex flex-col flex-shrink-0">
-          <div className="h-14 border-b border-border flex items-center px-4 justify-between bg-card text-sm font-bold">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-primary" />
-              AI Assistant
+          {/* Chat Header */}
+          <div className="border-b border-border bg-card flex-shrink-0">
+            <div className="h-10 flex items-center px-3 gap-2">
+              <MessageSquare className="w-4 h-4 text-primary flex-shrink-0" />
+              {isEditingChatTitle ? (
+                <input
+                  autoFocus
+                  value={chatTitleEdit}
+                  onChange={e => setChatTitleEdit(e.target.value)}
+                  onBlur={handleConfirmEditTitle}
+                  onKeyDown={e => { if (e.key === "Enter") handleConfirmEditTitle(); if (e.key === "Escape") setIsEditingChatTitle(false); }}
+                  className="flex-1 bg-transparent border-b border-primary text-sm font-bold outline-none text-foreground"
+                />
+              ) : (
+                <span className="flex-1 text-sm font-bold truncate">
+                  {chatTitleOverride || (conversationData as any)?.title || "AI Assistant"}
+                </span>
+              )}
+              {/* Action icons */}
+              <div className="flex items-center gap-0.5 flex-shrink-0">
+                <button
+                  title="New chat"
+                  onClick={handleNewChat}
+                  className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <PlusSquare className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  title="Rename chat"
+                  onClick={handleStartEditTitle}
+                  className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <SquarePen className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  title="Copy chat"
+                  onClick={handleCopyChat}
+                  disabled={!chatMessages.length}
+                  className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+                >
+                  {copiedChat ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
             </div>
           </div>
-          
+
           <ScrollArea className="flex-1 p-4">
             <div className="flex flex-col gap-4">
+              {chatMessages.length === 0 && (
+                <div className="text-xs text-muted-foreground text-center pt-8 flex flex-col items-center gap-2">
+                  <MessageSquare className="w-8 h-8 opacity-20" />
+                  <span>Ask anything about Arduino,<br/>attach a file, or paste code.</span>
+                </div>
+              )}
               {chatMessages.map((msg, i) => (
                 <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`px-3 py-2 rounded-lg max-w-[90%] text-sm ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'}`}>
-                    {msg.content || <span className="opacity-50">Thinking...</span>}
+                  <div className={`px-3 py-2 rounded-lg max-w-[90%] text-sm whitespace-pre-wrap break-words ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'}`}>
+                    {msg.content || <span className="opacity-50 animate-pulse">Thinking…</span>}
                   </div>
                 </div>
               ))}
+              <div ref={chatBottomRef} />
             </div>
           </ScrollArea>
-          
-          <div className="p-3 border-t border-border bg-card">
-            <form 
+
+          <div className="border-t border-border bg-card flex-shrink-0">
+            {/* Attached file badge */}
+            {attachedFile && (
+              <div className="px-3 pt-2 flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-1.5 bg-primary/10 border border-primary/30 rounded px-2 py-1 text-xs text-primary font-mono truncate">
+                  <Paperclip className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate">{attachedFile.name}</span>
+                </div>
+                <button onClick={() => setAttachedFile(null)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.ino,.cpp,.c,.h,.hpp,.md,.json,.yaml,.yml"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            <form
               onSubmit={e => { e.preventDefault(); handleSendChatMessage(); }}
-              className="flex gap-2"
+              className="p-3 flex gap-2"
             >
-              <Input 
-                placeholder="Ask AI..." 
+              <button
+                type="button"
+                title="Attach file"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-shrink-0 p-1.5 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
+              >
+                <Paperclip className="w-4 h-4" />
+              </button>
+              <Input
+                placeholder="Ask AI..."
                 value={chatInput}
                 onChange={e => setChatInput(e.target.value)}
                 className="bg-black/20 border-border focus-visible:ring-primary h-9"
               />
-              <Button type="submit" size="sm" className="h-9 px-3 bg-primary text-primary-foreground">
+              <Button type="submit" size="sm" className="h-9 px-3 bg-primary text-primary-foreground flex-shrink-0">
                 Send
               </Button>
             </form>
