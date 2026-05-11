@@ -30,7 +30,7 @@ export default function IDE() {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [code, setCode] = useState("");
   const [board, setBoard] = useState(BOARDS[0]);
-  const [terminalOutput, setTerminalOutput] = useState("AI Arduino IDE initialized.\nReady.");
+  const [terminalOutput, setTerminalOutput] = useState("CodexFrame initialized.\nReady.");
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -289,7 +289,7 @@ export default function IDE() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-primary font-bold text-lg">
             <Zap className="w-5 h-5 fill-primary" />
-            <span className="tracking-tighter">AI_ARDUINO</span>
+            <span className="tracking-tighter">CodexFrame</span>
           </div>
           
           <div className="w-px h-6 bg-border mx-2"></div>
