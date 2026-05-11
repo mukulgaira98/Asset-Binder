@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "AI Arduino IDE"
+version = "1.0.0"
+id = "artifacts/arduino-ide"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19226
+
+[services.development]
+run = "pnpm --filter @workspace/arduino-ide run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/arduino-ide", "run", "build" ]
+publicDir = "artifacts/arduino-ide/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19226"
+BASE_PATH = "/"

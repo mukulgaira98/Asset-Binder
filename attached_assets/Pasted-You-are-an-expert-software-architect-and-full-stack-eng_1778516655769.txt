@@ -1,0 +1,155 @@
+You are an expert software architect and full-stack engineer.
+
+Your job is to design and generate a complete production-grade desktop application called:
+
+“AI Arduino IDE”
+
+This is an AI-powered Arduino development environment similar in experience to VS Code + Arduino IDE + Replit AI combined.
+
+You must act like a senior engineering team and produce a full system design + implementation plan + codebase structure.
+
+------------------------------------
+🎯 PROJECT GOAL
+------------------------------------
+Build a desktop IDE where users can:
+- Write Arduino C/C++ code
+- Generate Arduino code using AI prompts
+- Compile and upload code to Arduino boards
+- Automatically debug and fix errors using AI
+- Manage projects like a modern IDE
+- Use a clean VS Code-like interface
+
+------------------------------------
+🧠 AI SYSTEM (CORE REQUIREMENT)
+------------------------------------
+Integrate AI as a central system:
+
+1. Code Generation AI:
+- Convert natural language prompts into Arduino code
+- Example: “blink LED on pin 13”
+
+2. Error Fixing AI:
+- Input: code + compiler error
+- Output: corrected code + explanation
+
+3. Code Assistant AI:
+- Suggest improvements
+- Optimize performance
+- Detect missing libraries or logic mistakes
+
+Use OpenAI API or equivalent LLM integration.
+
+------------------------------------
+⚙️ SYSTEM ARCHITECTURE
+------------------------------------
+Frontend:
+- Electron.js desktop application
+- HTML/CSS/JavaScript UI
+- Monaco Editor (VS Code-style code editor)
+
+Backend:
+- Node.js runtime inside Electron
+
+Compiler Layer:
+- Arduino CLI integration
+
+AI Layer:
+- OpenAI API integration
+
+------------------------------------
+🖥️ UI/UX DESIGN
+------------------------------------
+Design a modern developer IDE interface:
+
+Layout:
+- Left panel → File explorer (projects/sketches)
+- Center → Code editor (Monaco)
+- Right panel → AI assistant chat
+- Bottom panel → Serial monitor + logs
+- Top toolbar → buttons:
+  - New File
+  - Save
+  - Compile
+  - Upload
+  - AI Generate
+  - AI Fix
+
+Design requirements:
+- Dark mode default
+- Minimal and clean UI
+- Smooth animations
+- VS Code inspired layout
+- Beginner-friendly but powerful
+
+------------------------------------
+🔧 CORE FUNCTIONAL MODULES
+------------------------------------
+
+1. CODE EDITOR MODULE
+- Monaco Editor integration
+- Arduino/C++ syntax highlighting
+- Auto-complete
+- Multi-tab support
+- Error highlighting
+
+2. AI MODULE
+- Prompt → Arduino code generator
+- Code explanation engine
+- Auto debugging system
+- Performance optimization suggestions
+
+3. COMPILER MODULE
+- Arduino CLI integration
+- Board detection
+- Compile sketches
+- Upload to Arduino boards
+- Real-time logs
+
+4. SERIAL MONITOR MODULE
+- Live serial output display
+- Input commands to board
+- Baud rate selection
+
+5. PROJECT MANAGEMENT MODULE
+- Create/open/save projects
+- Folder-based structure
+- Auto-save functionality
+
+------------------------------------
+📁 PROJECT STRUCTURE
+------------------------------------
+Generate clean modular architecture:
+
+/ai-arduino-ide
+ ├── main.js
+ ├── renderer.js
+ ├── ai.js
+ ├── compiler.js
+ ├── serial.js
+ ├── editor.js
+ ├── index.html
+ ├── styles.css
+ ├── package.json
+ ├── /projects
+
+------------------------------------
+🚀 REQUIRED OUTPUT
+------------------------------------
+You must generate:
+
+1. System architecture explanation
+2. Folder structure
+3. Full working starter code for each module
+4. Installation steps
+5. Run instructions
+6. Arduino CLI setup guide
+7. OpenAI API integration guide
+
+------------------------------------
+🔥 FINAL PRODUCT VISION
+------------------------------------
+This should feel like:
+
+"A futuristic AI-powered Arduino development OS where coding, debugging, compiling, and uploading are all assisted by AI in real time."
+
+It must be scalable, modular, and production-ready.
