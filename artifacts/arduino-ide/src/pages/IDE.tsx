@@ -464,7 +464,10 @@ export default function IDE() {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-primary font-bold text-lg">
             <Zap className="w-5 h-5 fill-primary" />
-            <span className="tracking-tighter">CodexFrame</span>
+            <div className="flex flex-col leading-none">
+              <span className="tracking-tighter">CodexFrame</span>
+              <span className="text-[9px] font-normal text-muted-foreground tracking-wide">Designed by Mukul Gaira</span>
+            </div>
           </div>
           
           <div className="w-px h-6 bg-border mx-2"></div>
