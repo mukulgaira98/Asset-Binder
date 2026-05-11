@@ -63,6 +63,7 @@ export default function IDE() {
 
   // Mutations
   const createProject = useCreateProject();
+  const createConversation = useCreateOpenaiConversation();
   const updateProject = useUpdateProject();
   const compileSketch = useCompileSketch();
 
@@ -211,14 +212,39 @@ export default function IDE() {
   };
 
   const handleSendChatMessage = async () => {
-    if (!chatInput.trim() || !conversationId) return;
-    
+    if (!chatInput.trim()) return;
+
+    let activeConversationId = conversationId;
+
+    // Auto-create a conversation if none exists yet
+    if (!activeConversationId) {
+      try {
+        const conv = await new Promise<{ id: number }>((resolve, reject) => {
+          createConversation.mutate(
+            { data: { title: "Arduino Assistant" } },
+            {
+              onSuccess: (data) => {
+                setConversationId(data.id);
+                queryClient.invalidateQueries({ queryKey: getListOpenaiConversationsQueryKey() });
+                resolve(data);
+              },
+              onError: reject,
+            }
+          );
+        });
+        activeConversationId = conv.id;
+      } catch {
+        toast({ title: "Could not start conversation", variant: "destructive" });
+        return;
+      }
+    }
+
     const userMsg = chatInput;
     setChatInput("");
     setChatMessages(prev => [...prev, { id: Date.now(), role: "user", content: userMsg }]);
     
     try {
-      const response = await fetch(`/api/openai/conversations/${conversationId}/messages`, {
+      const response = await fetch(`/api/openai/conversations/${activeConversationId}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: userMsg })
