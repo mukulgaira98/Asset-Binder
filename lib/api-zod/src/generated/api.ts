@@ -146,6 +146,23 @@ export const GetOpenaiConversationResponse = zod.object({
 });
 
 /**
+ * @summary Update a conversation (e.g. rename)
+ */
+export const UpdateOpenaiConversationParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateOpenaiConversationBody = zod.object({
+  title: zod.string(),
+});
+
+export const UpdateOpenaiConversationResponse = zod.object({
+  id: zod.number(),
+  title: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+
+/**
  * @summary Delete a conversation
  */
 export const DeleteOpenaiConversationParams = zod.object({

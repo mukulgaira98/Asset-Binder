@@ -8,6 +8,8 @@ import {
   useListOpenaiConversations,
   useCreateOpenaiConversation,
   useGetOpenaiConversation,
+  useUpdateOpenaiConversation,
+  useDeleteOpenaiConversation,
   getListProjectsQueryKey,
   getListOpenaiConversationsQueryKey,
   getGetOpenaiConversationQueryKey
@@ -89,12 +91,19 @@ export default function IDE() {
     }
   }, [conversationData]);
 
+  // Chat rename state
+  const [renameChatId, setRenameChatId] = useState<number | null>(null);
+  const [renameChatValue, setRenameChatValue] = useState("");
+  const [isRenameChatOpen, setIsRenameChatOpen] = useState(false);
+
   // Mutations
   const createProject = useCreateProject();
   const createConversation = useCreateOpenaiConversation();
   const updateProject = useUpdateProject();
   const deleteProject = useDeleteProject();
   const compileSketch = useCompileSketch();
+  const updateConversation = useUpdateOpenaiConversation();
+  const deleteConversation = useDeleteOpenaiConversation();
 
   const handleSelectProject = (id: number) => {
     const p = projects?.find(p => p.id === id);
@@ -210,6 +219,46 @@ export default function IDE() {
     setAttachedFile(null);
     setChatInput("");
     setShowRecentChats(false);
+  };
+
+  const handleDeleteConversation = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deleteConversation.mutate({ id }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListOpenaiConversationsQueryKey() });
+        if (conversationId === id) {
+          newChatModeRef.current = true;
+          setConversationId(null);
+          setChatMessages([]);
+          setChatTitleOverride("");
+        }
+        toast({ title: "Chat deleted" });
+      },
+      onError: () => toast({ title: "Failed to delete chat", variant: "destructive" }),
+    });
+  };
+
+  const handleOpenRenameChat = (id: number, currentTitle: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRenameChatId(id);
+    setRenameChatValue(currentTitle);
+    setIsRenameChatOpen(true);
+  };
+
+  const handleConfirmRenameChat = () => {
+    if (!renameChatId || !renameChatValue.trim()) return;
+    updateConversation.mutate(
+      { id: renameChatId, data: { title: renameChatValue.trim() } },
+      {
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: getListOpenaiConversationsQueryKey() });
+          if (conversationId === renameChatId) setChatTitleOverride(renameChatValue.trim());
+          toast({ title: "Chat renamed" });
+          setIsRenameChatOpen(false);
+        },
+        onError: () => toast({ title: "Failed to rename chat", variant: "destructive" }),
+      }
+    );
   };
 
   const handleCopyChat = async () => {
@@ -760,10 +809,10 @@ export default function IDE() {
                     </div>
                   )}
                   {conversations?.map((conv: any) => (
-                    <button
+                    <div
                       key={conv.id}
                       onClick={() => handleLoadConversation(conv.id)}
-                      className={`w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded-md transition-colors group hover:bg-accent ${conv.id === conversationId ? 'bg-primary/10 text-primary' : 'text-sidebar-foreground'}`}
+                      className={`group flex items-start gap-2.5 px-3 py-2.5 rounded-md transition-colors cursor-pointer hover:bg-accent ${conv.id === conversationId ? 'bg-primary/10 text-primary' : 'text-sidebar-foreground'}`}
                     >
                       <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${conv.id === conversationId ? 'text-primary' : 'text-muted-foreground'}`} />
                       <div className="flex-1 min-w-0">
@@ -772,7 +821,31 @@ export default function IDE() {
                           {conv.createdAt ? new Date(conv.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ""}
                         </div>
                       </div>
-                    </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            onClick={e => e.stopPropagation()}
+                            className="opacity-0 group-hover:opacity-100 flex-shrink-0 p-0.5 rounded hover:bg-white/10 transition-opacity mt-0.5"
+                          >
+                            <MoreHorizontal className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent side="right" align="start" className="w-36">
+                          <DropdownMenuItem onClick={e => handleOpenRenameChat(conv.id, conv.title || "Untitled chat", e)}>
+                            <Pencil className="w-3.5 h-3.5 mr-2 text-muted-foreground" />
+                            Rename
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={e => handleDeleteConversation(conv.id, e)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="w-3.5 h-3.5 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   ))}
                 </div>
               </ScrollArea>
@@ -936,6 +1009,28 @@ export default function IDE() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRenameOpen(false)}>Cancel</Button>
             <Button onClick={handleRenameConfirm} disabled={!renameValue.trim()}>Rename</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isRenameChatOpen} onOpenChange={setIsRenameChatOpen}>
+        <DialogContent className="border-border bg-card">
+          <DialogHeader>
+            <DialogTitle>Rename Chat</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              value={renameChatValue}
+              onChange={e => setRenameChatValue(e.target.value)}
+              placeholder="Chat title"
+              className="bg-black/20"
+              onKeyDown={e => { if (e.key === "Enter") handleConfirmRenameChat(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameChatOpen(false)}>Cancel</Button>
+            <Button onClick={handleConfirmRenameChat} disabled={!renameChatValue.trim()}>Rename</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
