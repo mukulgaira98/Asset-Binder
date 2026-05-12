@@ -1,0 +1,105 @@
+Remove the browser popup prompt from the AI Generate feature in my AI Arduino IDE project.
+
+Current problem:
+When I click the “AI Generate” button, a browser popup appears asking:
+“What should the AI generate?”
+
+I do NOT want any popup or browser prompt.
+
+-----------------------------------
+✅ NEW REQUIRED BEHAVIOR
+-----------------------------------
+
+Create a modern built-in AI input panel inside the IDE interface.
+
+The AI system should work like VS Code Copilot or Replit AI.
+
+-----------------------------------
+✅ UI REQUIREMENTS
+-----------------------------------
+
+Add a dedicated AI sidebar panel on the right side of the IDE.
+
+Inside the panel:
+- AI input textbox
+- “Generate” button
+- “Fix Errors” button
+- AI response area
+
+The user should type prompts directly into the sidebar.
+
+Example:
+“Blink LED on pin 13”
+
+No browser popup should appear.
+
+-----------------------------------
+✅ REQUIRED FLOW
+-----------------------------------
+
+User types prompt in AI sidebar
+        ↓
+Clicks “Generate”
+        ↓
+Prompt sent to backend
+        ↓
+OpenAI API generates Arduino code
+        ↓
+Generated code automatically inserted into Monaco Editor
+
+-----------------------------------
+✅ IMPLEMENTATION REQUIREMENTS
+-----------------------------------
+
+Update:
+- index.html
+- renderer.js
+- styles.css
+- ai.js
+
+-----------------------------------
+✅ DESIGN REQUIREMENTS
+-----------------------------------
+
+Make the AI panel:
+- Modern
+- Dark mode
+- Smooth animations
+- VS Code style
+- Minimal UI
+
+Use:
+- Rounded corners
+- Glowing buttons
+- Clean spacing
+
+-----------------------------------
+✅ FUNCTIONAL REQUIREMENTS
+-----------------------------------
+
+1. Monaco Editor integration
+- editor.setValue() must update generated code
+
+2. AI input system
+- Use textarea instead of popup
+- Multi-line prompt support
+
+3. Loading state
+- Show:
+  “Generating code...”
+
+4. Error handling
+- Show readable errors in AI panel
+
+5. Async API calls
+- Proper async/await structure
+
+-----------------------------------
+✅ FINAL RESULT
+-----------------------------------
+
+The IDE should feel like a professional AI coding environment with:
+- Built-in AI assistant sidebar
+- No browser popups
+- Seamless AI code generation
+- Replit AI / GitHub Copilot style workflow

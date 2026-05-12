@@ -16,7 +16,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
-import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2, Usb, X, ChevronDown, ChevronUp, Activity, SquarePen, Copy, Paperclip, Check, PlusSquare, Clock, ArrowLeft } from "lucide-react";
+import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2, Usb, X, ChevronDown, ChevronUp, Activity, SquarePen, Copy, Paperclip, Check, PlusSquare, Clock, ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -90,6 +90,13 @@ export default function IDE() {
       setChatMessages(conversationData.messages);
     }
   }, [conversationData]);
+
+  // AI Generate panel state
+  const [showAIPanel, setShowAIPanel] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiStatus, setAiStatus] = useState<{ type: "idle" | "loading" | "success" | "error"; message: string }>({ type: "idle", message: "" });
+  const [aiMode, setAiMode] = useState<"generate" | "fix">("generate");
+  const aiPromptRef = useRef<HTMLTextAreaElement>(null);
 
   // Chat rename state
   const [renameChatId, setRenameChatId] = useState<number | null>(null);
@@ -376,61 +383,43 @@ export default function IDE() {
     setTerminalOutput(prev => prev + "\n\nSimulating upload to " + board + "...\nUpload complete. 100%");
   };
 
-  const handleAIGenerate = async () => {
-    const prompt = window.prompt("What should the AI generate?");
-    if (!prompt) return;
-    
-    setTerminalOutput("Generating code via AI...");
-    
-    try {
-      const response = await fetch('/api/ai/generate-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, board, context: code })
-      });
-      
-      const reader = response.body!.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6));
-            if (data.done) break;
-            if (data.content) {
-              setCode(prev => prev + data.content);
-            }
-          }
-        }
-      }
-      setTerminalOutput(prev => prev + "\nAI Generation complete.");
-    } catch(e) {
-      setTerminalOutput(prev => prev + "\nAI Generation failed.");
-    }
+  const openAIPanel = (mode: "generate" | "fix") => {
+    setAiMode(mode);
+    setAiStatus({ type: "idle", message: "" });
+    setShowAIPanel(true);
+    setTimeout(() => aiPromptRef.current?.focus(), 80);
   };
 
-  const handleAIFix = async () => {
-    if (!code) return;
-    setTerminalOutput("Analyzing code and errors...");
-    
+  const handleAIGenerate = () => openAIPanel("generate");
+  const handleAIFix = () => openAIPanel("fix");
+
+  const handleRunAI = async () => {
+    if (aiMode === "generate" && !aiPrompt.trim()) return;
+    if (aiStatus.type === "loading") return;
+
+    setAiStatus({ type: "loading", message: aiMode === "generate" ? "Generating code…" : "Analyzing and fixing code…" });
+    setTerminalOutput(aiMode === "generate" ? "Generating code via AI…" : "Analyzing code and errors…");
+
     try {
-      const response = await fetch('/api/ai/fix-code', {
+      const url = aiMode === "generate" ? '/api/ai/generate-code' : '/api/ai/fix-code';
+      const body = aiMode === "generate"
+        ? { prompt: aiPrompt.trim(), board, context: code }
+        : { code, error: lastCompileError || "General review", board };
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, error: lastCompileError || "General review", board })
+        body: JSON.stringify(body)
       });
-      
+
+      if (!response.ok) throw new Error(`Server error ${response.status}`);
+
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      setCode(""); // Clear before streaming replacement
-      
+
+      if (aiMode === "fix") setCode("");
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -439,17 +428,23 @@ export default function IDE() {
         buffer = lines.pop() ?? '';
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6));
-            if (data.done) break;
-            if (data.content) {
-              setCode(prev => prev + data.content);
-            }
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.done) break;
+              if (data.content) setCode(prev => prev + data.content);
+            } catch { /* skip malformed */ }
           }
         }
       }
-      setTerminalOutput(prev => prev + "\nAI Fix complete.");
-    } catch(e) {
-      setTerminalOutput(prev => prev + "\nAI Fix failed.");
+
+      const doneMsg = aiMode === "generate" ? "Code generated successfully." : "AI fix applied.";
+      setTerminalOutput(prev => prev + `\n${doneMsg}`);
+      setAiStatus({ type: "success", message: doneMsg });
+      if (aiMode === "generate") setAiPrompt("");
+    } catch (e: any) {
+      const errMsg = e?.message || "Something went wrong.";
+      setTerminalOutput(prev => prev + `\nAI ${aiMode} failed: ${errMsg}`);
+      setAiStatus({ type: "error", message: errMsg });
     }
   };
 
@@ -574,10 +569,22 @@ export default function IDE() {
         </div>
         
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleAIGenerate} disabled={!selectedProjectId} className="border-primary/50 text-primary hover:bg-primary/10 gap-2">
-            <Wand2 className="w-4 h-4" /> AI Generate
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => showAIPanel && aiMode === "generate" ? setShowAIPanel(false) : openAIPanel("generate")}
+            disabled={!selectedProjectId}
+            className={`gap-2 transition-all ${showAIPanel && aiMode === "generate" ? "bg-primary/20 border-primary text-primary" : "border-primary/50 text-primary hover:bg-primary/10"}`}
+          >
+            <Sparkles className="w-4 h-4" /> AI Generate
           </Button>
-          <Button variant="outline" size="sm" onClick={handleAIFix} disabled={!selectedProjectId} className="border-chart-2/50 text-chart-2 hover:bg-chart-2/10 gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => showAIPanel && aiMode === "fix" ? setShowAIPanel(false) : openAIPanel("fix")}
+            disabled={!selectedProjectId}
+            className={`gap-2 transition-all ${showAIPanel && aiMode === "fix" ? "bg-chart-2/20 border-chart-2 text-chart-2" : "border-chart-2/50 text-chart-2 hover:bg-chart-2/10"}`}
+          >
             <Wrench className="w-4 h-4" /> AI Fix
           </Button>
 
@@ -607,6 +614,111 @@ export default function IDE() {
           )}
         </div>
       </header>
+
+      {/* ── AI Generate / Fix Inline Panel ── */}
+      {showAIPanel && (
+        <div className="border-b border-border bg-[#0d1117] animate-in slide-in-from-top-2 duration-200 flex-shrink-0 z-10">
+          <div className="max-w-3xl mx-auto px-4 py-3 flex flex-col gap-3">
+            {/* Panel header */}
+            <div className="flex items-center gap-2">
+              <div className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest ${aiMode === "generate" ? "text-primary" : "text-chart-2"}`}>
+                {aiMode === "generate"
+                  ? <><Sparkles className="w-3.5 h-3.5" /> AI Generate</>
+                  : <><Wrench className="w-3.5 h-3.5" /> AI Fix</>
+                }
+              </div>
+              <div className="flex-1 h-px bg-border/50" />
+              <button
+                onClick={() => setShowAIPanel(false)}
+                className="p-1 rounded hover:bg-white/10 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Prompt textarea (only for generate mode) */}
+            {aiMode === "generate" && (
+              <div className="relative">
+                <textarea
+                  ref={aiPromptRef}
+                  value={aiPrompt}
+                  onChange={e => setAiPrompt(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleRunAI(); }}
+                  placeholder='Describe what to generate, e.g. "Blink LED on pin 13 every 500ms"'
+                  rows={2}
+                  disabled={aiStatus.type === "loading"}
+                  className="w-full bg-black/30 border border-border rounded-lg px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/30 resize-none transition-all disabled:opacity-60"
+                />
+                <span className="absolute bottom-2 right-3 text-[10px] text-muted-foreground select-none">⌘↵ to run</span>
+              </div>
+            )}
+
+            {/* Fix mode description */}
+            {aiMode === "fix" && (
+              <p className="text-xs text-muted-foreground">
+                {lastCompileError
+                  ? <>AI will analyze your code and the compiler error below to generate a fix.</>
+                  : <>No compiler error detected — AI will do a general code review and fix.</>
+                }
+                {lastCompileError && (
+                  <span className="block mt-1 font-mono text-destructive/80 truncate">{lastCompileError.split('\n')[0]}</span>
+                )}
+              </p>
+            )}
+
+            {/* Action row */}
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleRunAI}
+                disabled={aiStatus.type === "loading" || (aiMode === "generate" && !aiPrompt.trim())}
+                className={`gap-2 h-8 px-4 font-medium ${aiMode === "generate" ? "bg-primary hover:bg-primary/90 text-primary-foreground" : "bg-chart-2/80 hover:bg-chart-2 text-black"}`}
+              >
+                {aiStatus.type === "loading"
+                  ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {aiMode === "generate" ? "Generating…" : "Fixing…"}</>
+                  : aiMode === "generate"
+                    ? <><Sparkles className="w-3.5 h-3.5" /> Generate</>
+                    : <><Wrench className="w-3.5 h-3.5" /> Fix Code</>
+                }
+              </Button>
+
+              {aiMode === "generate" && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setAiMode("fix"); setAiStatus({ type: "idle", message: "" }); }}
+                  className="gap-1.5 h-8 text-muted-foreground hover:text-chart-2 text-xs"
+                >
+                  <Wrench className="w-3 h-3" /> Switch to Fix
+                </Button>
+              )}
+              {aiMode === "fix" && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => { setAiMode("generate"); setAiStatus({ type: "idle", message: "" }); }}
+                  className="gap-1.5 h-8 text-muted-foreground hover:text-primary text-xs"
+                >
+                  <Sparkles className="w-3 h-3" /> Switch to Generate
+                </Button>
+              )}
+
+              {/* Status pill */}
+              {aiStatus.type !== "idle" && (
+                <div className={`ml-auto flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${
+                  aiStatus.type === "loading" ? "bg-primary/10 text-primary" :
+                  aiStatus.type === "success" ? "bg-green-500/15 text-green-400" :
+                  "bg-destructive/15 text-destructive"
+                }`}>
+                  {aiStatus.type === "loading" && <Loader2 className="w-3 h-3 animate-spin" />}
+                  {aiStatus.type === "success" && <Check className="w-3 h-3" />}
+                  {aiStatus.message}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Board Connection Panel */}
       {boardPanelOpen && isConnected && (
