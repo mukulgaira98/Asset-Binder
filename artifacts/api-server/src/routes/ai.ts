@@ -42,7 +42,7 @@ router.post("/ai/generate-code", async (req, res) => {
     msgs.push({ role: "user", content: userMessage });
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-5.4",
+      model: "gpt-4o",
       max_completion_tokens: 4096,
       messages: msgs,
       stream: true,
@@ -83,7 +83,7 @@ router.post("/ai/fix-code", async (req, res) => {
 
   try {
     const stream = await openai.chat.completions.create({
-      model: "gpt-5.4",
+      model: "gpt-4o",
       max_completion_tokens: 4096,
       messages: [
         {
@@ -133,7 +133,7 @@ router.post("/ai/explain-code", async (req, res) => {
 
   try {
     const stream = await openai.chat.completions.create({
-      model: "gpt-5.4",
+      model: "gpt-4o",
       max_completion_tokens: 2048,
       messages: [
         {
