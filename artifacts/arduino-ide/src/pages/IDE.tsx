@@ -14,7 +14,7 @@ import {
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
-import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2, Usb, X, ChevronDown, ChevronUp, Activity, SquarePen, Copy, Paperclip, Check, PlusSquare } from "lucide-react";
+import { Play, Save, FilePlus, Cpu, MessageSquare, Terminal, Zap, Wand2, Wrench, Upload, MoreHorizontal, FolderOpen, Pencil, Trash2, Usb, X, ChevronDown, ChevronUp, Activity, SquarePen, Copy, Paperclip, Check, PlusSquare, Clock, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -44,6 +44,7 @@ export default function IDE() {
   const [chatTitleEdit, setChatTitleEdit] = useState("");
   const [attachedFile, setAttachedFile] = useState<{ name: string; content: string } | null>(null);
   const [copiedChat, setCopiedChat] = useState(false);
+  const [showRecentChats, setShowRecentChats] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const newChatModeRef = useRef(false);
@@ -102,6 +103,14 @@ export default function IDE() {
       setCode(p.code);
       setBoard(p.board);
       setTerminalOutput(`Loaded project: ${p.name}`);
+      // Always open a fresh chat when switching projects
+      newChatModeRef.current = true;
+      setConversationId(null);
+      setChatMessages([]);
+      setChatTitleOverride("");
+      setAttachedFile(null);
+      setChatInput("");
+      setShowRecentChats(false);
     }
   };
 
@@ -190,6 +199,17 @@ export default function IDE() {
     setChatTitleOverride("");
     setAttachedFile(null);
     setChatInput("");
+    setShowRecentChats(false);
+  };
+
+  const handleLoadConversation = (id: number) => {
+    newChatModeRef.current = false;
+    setConversationId(id);
+    setChatMessages([]);
+    setChatTitleOverride("");
+    setAttachedFile(null);
+    setChatInput("");
+    setShowRecentChats(false);
   };
 
   const handleCopyChat = async () => {
@@ -707,119 +727,158 @@ export default function IDE() {
           </div>
         </main>
 
-        {/* Right AI Chat */}
+        {/* Right AI Chat — ChatGPT-style */}
         <aside className="w-80 border-l border-border bg-sidebar flex flex-col flex-shrink-0">
-          {/* Chat Header */}
-          <div className="border-b border-border bg-card flex-shrink-0">
-            <div className="h-10 flex items-center px-3 gap-2">
-              <MessageSquare className="w-4 h-4 text-primary flex-shrink-0" />
-              {isEditingChatTitle ? (
-                <input
-                  autoFocus
-                  value={chatTitleEdit}
-                  onChange={e => setChatTitleEdit(e.target.value)}
-                  onBlur={handleConfirmEditTitle}
-                  onKeyDown={e => { if (e.key === "Enter") handleConfirmEditTitle(); if (e.key === "Escape") setIsEditingChatTitle(false); }}
-                  className="flex-1 bg-transparent border-b border-primary text-sm font-bold outline-none text-foreground"
-                />
-              ) : (
-                <span className="flex-1 text-sm font-bold truncate">
-                  {chatTitleOverride || (conversationData as any)?.title || "AI Assistant"}
-                </span>
-              )}
-              {/* Action icons */}
-              <div className="flex items-center gap-0.5 flex-shrink-0">
+
+          {/* ── RECENT CHATS VIEW ── */}
+          {showRecentChats ? (
+            <>
+              <div className="border-b border-border bg-card flex-shrink-0 h-10 flex items-center px-3 gap-2">
                 <button
-                  title="New chat"
+                  onClick={() => setShowRecentChats(false)}
+                  className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  title="Back to chat"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <span className="flex-1 text-sm font-bold">Recent Chats</span>
+                <button
                   onClick={handleNewChat}
-                  className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1.5 text-xs px-2 py-1 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors font-medium"
+                  title="New chat"
                 >
-                  <PlusSquare className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  title="Rename chat"
-                  onClick={handleStartEditTitle}
-                  className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <SquarePen className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  title="Copy chat"
-                  onClick={handleCopyChat}
-                  disabled={!chatMessages.length}
-                  className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
-                >
-                  {copiedChat ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                  <PlusSquare className="w-3.5 h-3.5" /> New
                 </button>
               </div>
-            </div>
-          </div>
 
-          <ScrollArea className="flex-1 p-4">
-            <div className="flex flex-col gap-4">
-              {chatMessages.length === 0 && (
-                <div className="text-xs text-muted-foreground text-center pt-8 flex flex-col items-center gap-2">
-                  <MessageSquare className="w-8 h-8 opacity-20" />
-                  <span>Ask anything about Arduino,<br/>attach a file, or paste code.</span>
+              <ScrollArea className="flex-1">
+                <div className="p-2 flex flex-col gap-1">
+                  {(!conversations || conversations.length === 0) && (
+                    <div className="text-xs text-muted-foreground text-center pt-10 flex flex-col items-center gap-2">
+                      <Clock className="w-7 h-7 opacity-20" />
+                      <span>No previous chats yet.</span>
+                    </div>
+                  )}
+                  {conversations?.map((conv: any) => (
+                    <button
+                      key={conv.id}
+                      onClick={() => handleLoadConversation(conv.id)}
+                      className={`w-full text-left flex items-start gap-2.5 px-3 py-2.5 rounded-md transition-colors group hover:bg-accent ${conv.id === conversationId ? 'bg-primary/10 text-primary' : 'text-sidebar-foreground'}`}
+                    >
+                      <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${conv.id === conversationId ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium truncate">{conv.title || "Untitled chat"}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          {conv.createdAt ? new Date(conv.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ""}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
                 </div>
-              )}
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                  <div className={`px-3 py-2 rounded-lg max-w-[90%] text-sm whitespace-pre-wrap break-words ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'}`}>
-                    {msg.content || <span className="opacity-50 animate-pulse">Thinking…</span>}
+              </ScrollArea>
+            </>
+          ) : (
+            /* ── ACTIVE CHAT VIEW ── */
+            <>
+              {/* Chat Header */}
+              <div className="border-b border-border bg-card flex-shrink-0">
+                <div className="h-10 flex items-center px-3 gap-2">
+                  <MessageSquare className="w-4 h-4 text-primary flex-shrink-0" />
+                  {isEditingChatTitle ? (
+                    <input
+                      autoFocus
+                      value={chatTitleEdit}
+                      onChange={e => setChatTitleEdit(e.target.value)}
+                      onBlur={handleConfirmEditTitle}
+                      onKeyDown={e => { if (e.key === "Enter") handleConfirmEditTitle(); if (e.key === "Escape") setIsEditingChatTitle(false); }}
+                      className="flex-1 bg-transparent border-b border-primary text-sm font-bold outline-none text-foreground"
+                    />
+                  ) : (
+                    <span className="flex-1 text-sm font-bold truncate">
+                      {chatTitleOverride || (conversationData as any)?.title || "Arduino Assistant"}
+                    </span>
+                  )}
+                  {/* Action icons */}
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                    <button title="New chat" onClick={handleNewChat} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                      <PlusSquare className="w-3.5 h-3.5" />
+                    </button>
+                    <button title="Recent chats" onClick={() => setShowRecentChats(true)} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                      <Clock className="w-3.5 h-3.5" />
+                    </button>
+                    <button title="Rename chat" onClick={handleStartEditTitle} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors">
+                      <SquarePen className="w-3.5 h-3.5" />
+                    </button>
+                    <button title="Copy chat" onClick={handleCopyChat} disabled={!chatMessages.length} className="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30">
+                      {copiedChat ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
                   </div>
                 </div>
-              ))}
-              <div ref={chatBottomRef} />
-            </div>
-          </ScrollArea>
-
-          <div className="border-t border-border bg-card flex-shrink-0">
-            {/* Attached file badge */}
-            {attachedFile && (
-              <div className="px-3 pt-2 flex items-center gap-2">
-                <div className="flex-1 flex items-center gap-1.5 bg-primary/10 border border-primary/30 rounded px-2 py-1 text-xs text-primary font-mono truncate">
-                  <Paperclip className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate">{attachedFile.name}</span>
-                </div>
-                <button onClick={() => setAttachedFile(null)} className="text-muted-foreground hover:text-foreground">
-                  <X className="w-3.5 h-3.5" />
-                </button>
               </div>
-            )}
 
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,.ino,.cpp,.c,.h,.hpp,.md,.json,.yaml,.yml"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
+              <ScrollArea className="flex-1 p-4">
+                <div className="flex flex-col gap-4">
+                  {chatMessages.length === 0 && (
+                    <div className="text-xs text-muted-foreground text-center pt-8 flex flex-col items-center gap-3">
+                      <MessageSquare className="w-8 h-8 opacity-20" />
+                      <span>Ask anything about Arduino,<br/>attach a file, or paste code.</span>
+                      {conversations && conversations.length > 0 && (
+                        <button
+                          onClick={() => setShowRecentChats(true)}
+                          className="flex items-center gap-1.5 text-xs text-primary/70 hover:text-primary transition-colors mt-1"
+                        >
+                          <Clock className="w-3 h-3" /> View recent chats
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                      <div className={`px-3 py-2 rounded-lg max-w-[90%] text-sm whitespace-pre-wrap break-words ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'}`}>
+                        {msg.content || <span className="opacity-50 animate-pulse">Thinking…</span>}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={chatBottomRef} />
+                </div>
+              </ScrollArea>
 
-            <form
-              onSubmit={e => { e.preventDefault(); handleSendChatMessage(); }}
-              className="p-3 flex gap-2"
-            >
-              <button
-                type="button"
-                title="Attach file"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex-shrink-0 p-1.5 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
-              >
-                <Paperclip className="w-4 h-4" />
-              </button>
-              <Input
-                placeholder="Ask AI..."
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                className="bg-black/20 border-border focus-visible:ring-primary h-9"
-              />
-              <Button type="submit" size="sm" className="h-9 px-3 bg-primary text-primary-foreground flex-shrink-0">
-                Send
-              </Button>
-            </form>
-          </div>
+              <div className="border-t border-border bg-card flex-shrink-0">
+                {/* Attached file badge */}
+                {attachedFile && (
+                  <div className="px-3 pt-2 flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-1.5 bg-primary/10 border border-primary/30 rounded px-2 py-1 text-xs text-primary font-mono truncate">
+                      <Paperclip className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate">{attachedFile.name}</span>
+                    </div>
+                    <button onClick={() => setAttachedFile(null)} className="text-muted-foreground hover:text-foreground">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+                <input ref={fileInputRef} type="file" accept=".txt,.ino,.cpp,.c,.h,.hpp,.md,.json,.yaml,.yml" className="hidden" onChange={handleFileUpload} />
+                <form onSubmit={e => { e.preventDefault(); handleSendChatMessage(); }} className="p-3 flex gap-2">
+                  <button
+                    type="button"
+                    title="Attach file"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex-shrink-0 p-1.5 rounded border border-border text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
+                  >
+                    <Paperclip className="w-4 h-4" />
+                  </button>
+                  <Input
+                    placeholder="Ask AI..."
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    className="bg-black/20 border-border focus-visible:ring-primary h-9"
+                  />
+                  <Button type="submit" size="sm" className="h-9 px-3 bg-primary text-primary-foreground flex-shrink-0">
+                    Send
+                  </Button>
+                </form>
+              </div>
+            </>
+          )}
         </aside>
       </div>
 
