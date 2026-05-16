@@ -185,7 +185,7 @@ export default function IDE() {
           }
         } catch { /* port closed */ }
       };
-      readLoop();
+      readLoop().catch(() => { /* port closed or error */ });
     } catch (err: any) {
       if (err?.name !== "NotFoundError") {
         toast({ title: "Connection failed", description: err?.message, variant: "destructive" });
@@ -273,10 +273,14 @@ export default function IDE() {
     const text = chatMessages
       .map(m => `${m.role === "user" ? "You" : "AI"}: ${m.content}`)
       .join("\n\n");
-    await navigator.clipboard.writeText(text);
-    setCopiedChat(true);
-    setTimeout(() => setCopiedChat(false), 2000);
-    toast({ title: "Chat copied to clipboard" });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedChat(true);
+      setTimeout(() => setCopiedChat(false), 2000);
+      toast({ title: "Chat copied to clipboard" });
+    } catch {
+      toast({ title: "Could not copy to clipboard", variant: "destructive" });
+    }
   };
 
   const handleStartEditTitle = () => {
