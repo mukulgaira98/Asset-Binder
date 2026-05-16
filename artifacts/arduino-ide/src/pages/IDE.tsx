@@ -618,7 +618,6 @@ export default function IDE() {
           )}
         </div>
       </header>
-
       {/* ── AI Generate / Fix Inline Panel ── */}
       {showAIPanel && (
         <div className="border-b border-border bg-[#0d1117] animate-in slide-in-from-top-2 duration-200 flex-shrink-0 z-10">
@@ -676,7 +675,7 @@ export default function IDE() {
                 size="sm"
                 onClick={handleRunAI}
                 disabled={aiStatus.type === "loading" || (aiMode === "generate" && !aiPrompt.trim())}
-                className={`gap-2 h-8 px-4 font-medium ${aiMode === "generate" ? "bg-primary hover:bg-primary/90 text-primary-foreground" : "bg-chart-2/80 hover:bg-chart-2 text-black"}`}
+                className="inline-flex items-center justify-center whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover-elevate active-elevate-2 border border-primary-border min-h-8 rounded-md text-xs gap-2 h-8 px-4 font-medium bg-chart-2/80 hover:bg-chart-2 text-[#c8c8db]"
               >
                 {aiStatus.type === "loading"
                   ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> {aiMode === "generate" ? "Generating…" : "Fixing…"}</>
@@ -723,7 +722,6 @@ export default function IDE() {
           </div>
         </div>
       )}
-
       {/* Board Connection Panel */}
       {boardPanelOpen && isConnected && (
         <div className="border-b border-border bg-[#0d1117] px-4 py-3 flex items-start gap-6 animate-in slide-in-from-top-2 duration-200">
@@ -794,7 +792,6 @@ export default function IDE() {
           </div>
         </div>
       )}
-
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar */}
         <aside className="w-64 border-r border-border bg-sidebar flex flex-col flex-shrink-0">
@@ -968,7 +965,7 @@ export default function IDE() {
             </>
           ) : (
             /* ── ACTIVE CHAT VIEW ── */
-            <>
+            (<>
               {/* Chat Header */}
               <div className="border-b border-border bg-card flex-shrink-0">
                 <div className="h-10 flex items-center px-3 gap-2">
@@ -1004,7 +1001,6 @@ export default function IDE() {
                   </div>
                 </div>
               </div>
-
               <ScrollArea className="flex-1 p-4">
                 <div className="flex flex-col gap-4">
                   {chatMessages.length === 0 && (
@@ -1031,7 +1027,6 @@ export default function IDE() {
                   <div ref={chatBottomRef} />
                 </div>
               </ScrollArea>
-
               <div className="border-t border-border bg-card flex-shrink-0">
                 {/* Attached file badge */}
                 {attachedFile && (
@@ -1066,11 +1061,10 @@ export default function IDE() {
                   </Button>
                 </form>
               </div>
-            </>
+            </>)
           )}
         </aside>
       </div>
-
       <Dialog open={isNewProjectOpen} onOpenChange={setIsNewProjectOpen}>
         <DialogContent className="border-border bg-card">
           <DialogHeader>
@@ -1106,7 +1100,6 @@ export default function IDE() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
         <DialogContent className="border-border bg-card">
           <DialogHeader>
@@ -1128,7 +1121,6 @@ export default function IDE() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       <Dialog open={isRenameChatOpen} onOpenChange={setIsRenameChatOpen}>
         <DialogContent className="border-border bg-card">
           <DialogHeader>
