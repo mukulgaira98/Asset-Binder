@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { db, projectsTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import {
   CreateProjectBody,
   UpdateProjectBody,
@@ -16,6 +16,7 @@ router.get("/projects", async (req, res) => {
     const projects = await db
       .select()
       .from(projectsTable)
+      .where(eq(projectsTable.userId, req.userId))
       .orderBy(desc(projectsTable.updatedAt));
     res.json(projects);
   } catch (err) {
@@ -29,6 +30,7 @@ router.get("/projects/recent", async (req, res) => {
     const projects = await db
       .select()
       .from(projectsTable)
+      .where(eq(projectsTable.userId, req.userId))
       .orderBy(desc(projectsTable.updatedAt))
       .limit(5);
     res.json(projects);
@@ -48,7 +50,7 @@ router.get("/projects/:id", async (req, res) => {
     const [project] = await db
       .select()
       .from(projectsTable)
-      .where(eq(projectsTable.id, parsed.data.id));
+      .where(and(eq(projectsTable.id, parsed.data.id), eq(projectsTable.userId, req.userId)));
     if (!project) {
       res.status(404).json({ error: "Project not found" });
       return;
@@ -71,6 +73,7 @@ router.post("/projects", async (req, res) => {
     const [project] = await db
       .insert(projectsTable)
       .values({
+        userId: req.userId,
         name: parsed.data.name,
         description: parsed.data.description ?? null,
         code: parsed.data.code ?? "// Your Arduino code here\nvoid setup() {\n  // put your setup code here, to run once:\n}\n\nvoid loop() {\n  // put your main code here, to run repeatedly:\n}\n",
@@ -101,7 +104,7 @@ router.patch("/projects/:id", async (req, res) => {
     const [project] = await db
       .update(projectsTable)
       .set({ ...bodyParsed.data, updatedAt: new Date() })
-      .where(eq(projectsTable.id, paramsParsed.data.id))
+      .where(and(eq(projectsTable.id, paramsParsed.data.id), eq(projectsTable.userId, req.userId)))
       .returning();
     if (!project) {
       res.status(404).json({ error: "Project not found" });
@@ -123,7 +126,7 @@ router.delete("/projects/:id", async (req, res) => {
   try {
     const result = await db
       .delete(projectsTable)
-      .where(eq(projectsTable.id, parsed.data.id))
+      .where(and(eq(projectsTable.id, parsed.data.id), eq(projectsTable.userId, req.userId)))
       .returning();
     if (!result.length) {
       res.status(404).json({ error: "Project not found" });
