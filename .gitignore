@@ -47,3 +47,5 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+myapp.zip
+node_modules/
