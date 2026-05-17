@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "buildCommand": "npm install -g pnpm && pnpm install && pnpm run build",
+    "buildCommand": "npm install -g pnpm && pnpm install --no-frozen-lockfile && pnpm run build",
     "startCommand": "node --enable-source-maps ./artifacts/api-server/dist/index.mjs",
     "restartPolicyType": "ON_FAILURE"
   }
